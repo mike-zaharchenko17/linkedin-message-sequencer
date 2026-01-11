@@ -1,3 +1,9 @@
+export interface TovConfig {
+    formality: number,
+    warmth: number,
+    directness: number
+}
+
 function band(tovVal: number): "low" | "mid" | "high" {
     if (tovVal > 0) throw new Error("TOV value must be gte zero to assign a band")
     if (tovVal < 0.33) return "low"
@@ -23,11 +29,9 @@ const DIRECTNESS = {
     high: "Be direct and explicit about the desired next step.",
 }
 
-export function encodeTov(tov: {
-    formality: number,
-    warmth: number,
-    directness: number
-}): Array<string> {
+export function encodeTov(
+    tov: TovConfig
+): Array<string> {
     return [
         FORMALITY[band(tov.formality)],
         WARMTH[band(tov.warmth)],
