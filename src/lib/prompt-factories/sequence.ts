@@ -10,7 +10,6 @@ export function generateSequenceFactory(
     profileSnapshot: ProfileSnapshot,
     tovConfig: TovConfig,
     sequenceLength: number,
-
 ) : string {
     const [formality, warmth, directness] = encodeTov(tovConfig)
 
