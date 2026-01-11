@@ -12,6 +12,7 @@
     "sourceMap": true,
 
     "strict": true,
+    "noStrictGenericChecks": false,
     "skipLibCheck": true,
 
     "noEmitOnError": true,
