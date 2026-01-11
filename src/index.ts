@@ -1,4 +1,6 @@
+import "dotenv/config"
 import Fastify from 'fastify'
+import { health } from './routes/health.js'
 
 const fastify = Fastify({
     logger: true
@@ -7,6 +9,8 @@ const fastify = Fastify({
 fastify.get('/', async (request, reply) => {
     return { hello: "world" }
 })
+
+fastify.get('/health', health)
 
 const start = async () => {
     try {

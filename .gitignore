@@ -26,9 +26,6 @@ tmp/
 .DS_Store
 Thumbs.db
 
-# Optional: Node version file (ignore only if you don't want it committed)
-# .nvmrc
-
 # Test tooling
 .vitest/
 
