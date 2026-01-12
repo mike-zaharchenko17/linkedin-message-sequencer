@@ -79,10 +79,10 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
 
-        const [upsertedProfile, upsertedTovConfig] = await Promise.all([
-            upsertProspect(profileStub),
-            upsertTovConfig(tov_config)
-        ])
+        // const [upsertedProfile, upsertedTovConfig] = await Promise.all([
+        //     upsertProspect(profileStub),
+        //     upsertTovConfig(tov_config)
+        // ])
 
         const prompt = generateSequencePrompt(
             company_context, 
@@ -98,7 +98,8 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
                 "Content-Type": "application/json",
             }, 
             body: JSON.stringify({
-                "model": "gpt-5-mini-2025-08-07",
+                "model": "gpt-5-mini",
+                "reasoning": { "effort": "low" },
                 "input": prompt
             })
         }) 
