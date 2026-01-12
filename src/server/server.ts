@@ -16,6 +16,28 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         return { ok: r.rows[0]?.ok === 1 }
     })
 
+    fastify.post('/generate-sequence-dummy', gsOpts, async (request, reply) => {
+        const { 
+            tov_config, 
+            company_context, 
+            sequence_length, 
+            prospect_url 
+        } = request.body
+
+        const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
+
+        const prompt = generateSequencePrompt(
+            company_context, 
+            profileStub,
+            tov_config,
+            sequence_length
+        )
+
+        return {
+            message: prompt
+        }
+    })
+
     fastify.post('/generate-sequence', gsOpts, async (request, reply) => {
         const { 
             tov_config, 
@@ -24,12 +46,11 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             prospect_url 
         } = request.body
 
-        console.log(JSON.stringify(tov_config))
-
         const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
 
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
+        
         const [upsertedProfile, upsertedTovConfig] = await Promise.all([
             upsertProspect(profileStub),
             upsertTovConfig(tov_config)

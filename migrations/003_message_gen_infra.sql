@@ -33,6 +33,8 @@ create table if not exists message_sequences (
     -- which stage of the interaction are we in? 
     -- this is the next message to send and is incremented on message send
     current_step int not null default 1,
+    -- if response received, stop sequence (if appropriate)
+    response_received boolean not null default FALSE,
     created_at timestamptz not null default now(),
     last_sent_at timestamptz,
 
@@ -41,6 +43,7 @@ create table if not exists message_sequences (
 );
 
 -- conditional messaging for scalability and control
+-- to keep the scope of this assignment small, we are using only 'no_response'
 create type if not exists trigger_types as enum ('no_response', 'always_send', 'manual');
 
 create table if not exists messages (
