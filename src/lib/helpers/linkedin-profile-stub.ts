@@ -3,14 +3,8 @@
  * Returns an object shaped like a row from `prospects` so it can be
  * inserted into the DB or used as a mock in unit tests.
  */
-export type ProspectStub = {
-	linkedin_url: string;
-	fname: string;
-	middle_initial?: string | null;
-	lname: string;
-	headline?: string | null;
-	profile_data: Record<string, unknown>;
-};
+
+import { ProspectStub } from "../../types/types.js";
 
 export function generateLinkedInProfileStub(
 	linkedin_url: string,

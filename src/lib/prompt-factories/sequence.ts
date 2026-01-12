@@ -1,5 +1,5 @@
-import { TovConfig, encodeTov } from "../encode-tov.js"
-import { ProspectStub } from "../linkedin-profile-stub.js"
+import { encodeTov } from "../helpers/encode-tov.js"
+import { TovConfig, ProspectStub } from "../../types/types.js"
 
 export function generateSequencePrompt(
     companyCtx: string,
@@ -48,12 +48,15 @@ export function generateSequencePrompt(
     - For every message, provide a confidence score (1-100) that conveys how confident you (the model) are that you had enough concrete personalization signals to write this message.
     - For every message, provide 1-2 sentences of rationale for why you are structuring this message the way you are
 
-    Return JSON matching this schema exactly. AVOID MARKDOWN.
+    Return only valid JSON, do not include any explanatory text or unescaped newlines; escape characters as required
+
+    Return JSON matching this schema:
 
     {
         "sequence_length": number,
         "messages: [{
             "step": number,
+            "msg_content": string,
             "confidence": number,
             "rationale": string,
             "delay_days": number

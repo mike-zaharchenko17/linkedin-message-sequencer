@@ -83,4 +83,25 @@ export interface Usage {
   total_tokens: number
 }
 
+interface MessageSequenceJsonString {
+  sequence_length: number,
+  messages: [{
+      step: number,
+      msg_content: string,
+      confidence: number,
+      rationale: string,
+      delay_days: number
+  }],
+}
+
+export interface ParsedApiResponse {
+  usage?: {
+    total_tokens: number,
+    input_tokens: number,
+    output_tokens: number,
+  },
+  generatedContent?: MessageSequenceJsonString
+  model?: string
+}
+
 export default OpenAIResponse

@@ -1,7 +1,6 @@
-import { TovConfig } from "../lib/encode-tov.js";
-import { ProspectStub } from "../lib/linkedin-profile-stub.js";
+import { AiGeneration, Message, MessageSequence, ProspectStub, TovConfig } from "../types/types.js";
 import { db } from "./client.js";
-import { prospects, tov_configs } from "./schema.js";
+import { message_sequences, prospects, tov_configs, messages, ai_generations } from "./schema.js";
 
 export const upsertProspect = async (p: ProspectStub) => {
     const upsertedData = await db
@@ -24,15 +23,50 @@ export const upsertTovConfig = async (t: TovConfig) => {
     const upsertedData = await db
         .insert(tov_configs)
         .values({
-            formality: t.formality,
-            warmth: t.warmth,
-            directness: t.directness
-            // instructions will go here as well
+            formality: t.formality * 100,
+            warmth: t.warmth * 100,
+            directness: t.directness * 100
         })
         .onConflictDoNothing()
         .returning()
 
     return upsertedData
+}
+
+export const insertMessageSequence = async (ms: MessageSequence) => {
+    const insertedData = await db
+        .insert(message_sequences)
+        .values(ms)
+        .returning()
+
+    return insertedData
+}
+
+export const insertMessage = async (m: Message) => {
+    const insertedData = await db
+        .insert(messages)
+        .values(m)
+        .returning()
+    
+    return insertedData
+}
+
+export const insertMultipleMessages = async (m: Message[]) => {
+    const insertedData = await db
+        .insert(messages)
+        .values(m)
+        .returning()
+    
+    return insertedData
+}
+
+export const insertAiGeneration = async (a: AiGeneration) => {
+    const insertedData = await db
+        .insert(ai_generations)
+        .values(a)
+        .returning()
+
+    return insertedData
 }
 
 

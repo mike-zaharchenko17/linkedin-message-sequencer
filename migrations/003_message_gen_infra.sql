@@ -44,7 +44,6 @@ create table if not exists message_sequences (
 
 -- conditional messaging for scalability and control
 -- to keep the scope of this assignment small, we are using only 'no_response'
-create type if not exists trigger_types as enum ('no_response', 'always_send', 'manual');
 
 create table if not exists messages (
     /* RELATIONS */
@@ -57,7 +56,7 @@ create table if not exists messages (
     -- which stage of the interaction does this msg correspond to?
     step int not null,
     msg_content text not null,
-    trigger_type trigger_types not null default 'no_response',
+    trigger_type text not null default 'no_response',
     delay_days int not null default 2,
 
     /* METADATA */
@@ -66,6 +65,7 @@ create table if not exists messages (
 
     /* CONSTRAINTS */
     unique (message_sequence_id, step),
+    check (trigger_type in ('no_response', 'always_send', 'manual')),
     check (confidence between 0 and 100),
     check (delay_days >= 0),
     check (step >= 1)

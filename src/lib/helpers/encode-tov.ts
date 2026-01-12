@@ -1,8 +1,4 @@
-export interface TovConfig {
-    formality: number,
-    warmth: number,
-    directness: number
-}
+import { TovConfig } from "../../types/types.js"
 
 function band(tovVal: number): "low" | "mid" | "high" {
     if (!Number.isFinite(tovVal)) throw new Error(`TOV value not finite: ${tovVal}`)

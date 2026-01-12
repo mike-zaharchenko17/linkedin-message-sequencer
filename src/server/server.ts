@@ -4,11 +4,12 @@ import { JsonSchemaToTsProvider } from "@fastify/type-provider-json-schema-to-ts
 import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
 import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
-import generateLinkedInProfileStub, { ProspectStub } from "../lib/linkedin-profile-stub.js"
-import { upsertTovConfig, upsertProspect } from "../db/callbacks.js"
+import generateLinkedInProfileStub from "../lib/helpers/linkedin-profile-stub.js"
+import { upsertTovConfig, upsertProspect, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
 import { OPENAI_API_KEY, VERIFICATION_KEY } from "../config/env.js"
-import OpenAIResponse, { OutputItem } from "./schemas/openai-response.schema.js"
-import { text } from "node:stream/consumers"
+import { ProspectStub } from "../types/types.js"
+import { parseOpenAiResponse } from "../lib/helpers/parse-openai-response.js"
+import { ParsedApiResponse } from "../types/openai-response.types.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -44,28 +45,6 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         return { ok: r.rows[0]?.ok === 1 }
     })
 
-    fastify.post('/generate-sequence-dummy', async (request, reply) => {
-        const { 
-            tov_config, 
-            company_context, 
-            sequence_length, 
-            prospect_url 
-        } = request.body as any
-
-        const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
-
-        const prompt = generateSequencePrompt(
-            company_context, 
-            profileStub,
-            tov_config,
-            sequence_length
-        )
-
-        return {
-            message: prompt
-        }
-    })
-
     fastify.post('/generate-sequence', { ...gsOpts, preHandler: verifyKey }, async (request, reply) => {
         const { 
             tov_config, 
@@ -79,11 +58,12 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
 
-        // const [upsertedProfile, upsertedTovConfig] = await Promise.all([
-        //     upsertProspect(profileStub),
-        //     upsertTovConfig(tov_config)
-        // ])
+        const [upsertedProspect, upsertedTovConfig] = await Promise.all([
+            upsertProspect(profileStub),
+            upsertTovConfig(tov_config)
+        ])
 
+        // generate prompt
         const prompt = generateSequencePrompt(
             company_context, 
             profileStub,
@@ -96,64 +76,79 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             headers: {
                 "Authorization": `Bearer ${OPENAI_API_KEY}`,
                 "Content-Type": "application/json",
-            }, 
+            },
             body: JSON.stringify({
-                "model": "gpt-5-mini",
-                "reasoning": { "effort": "low" },
-                "input": prompt
+                model: "gpt-5-mini",
+                reasoning: { effort: "low" },
+                input: prompt,
+                // ask the Responses API to return a structured JSON object
+                response_format: {
+                    type: "json_schema",
+                    json_schema: {
+                        name: "MessageSequence",
+                        schema: {
+                            type: "object",
+                            properties: {
+                                sequence_length: { type: "integer", minimum: 1 },
+                                messages: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            step: { type: "integer", minimum: 1 },
+                                            msg_content: { type: "string" },
+                                            confidence: { type: "number", minimum: 0, maximum: 100 },
+                                            rationale: { type: "string" },
+                                            delay_days: { type: "integer", minimum: 0 }
+                                        },
+                                        required: ["step","msg_content","confidence","rationale","delay_days"],
+                                        additionalProperties: false
+                                    }
+                                }
+                            },
+                            required: ["sequence_length","messages"],
+                            additionalProperties: false
+                        }
+                    }
+                }
             })
-        }) 
-
-        const openAiResponseBody: OpenAIResponse = await openAiResponse.json()
-
-        const responseMessages : OutputItem[] = openAiResponseBody.output.filter((o: OutputItem) => o.type === "message")
-
-        const textResponse = responseMessages[0].content?.[0].text
-        const textResponseAsJson = textResponse ? JSON.parse(textResponse) : null
-
-        console.log(JSON.stringify(textResponseAsJson, null, 2))
-
-        console.log(JSON.stringify(openAiResponseBody.usage, null, 2))
-
-        // note: make a decision on whether it's best to do tov_configs as enum or smallint (both?)
-
-        /*
-        create full response schema
-        add to prompt the meaning of different step numbers
-        send prompt with full response schema to openai api
-        parse response and write the following
-         - to message sequences
-             - create new sequence with:
-                 - prospect_id (select on insert w orm)
-                 - tov_config_id (select on insert w orm)
-                 - company_context (from request)
-                 - prospect_analysis (figure out how to do this- probably a call)
-                 - sequence_length (from request)
+        })
         
-        parse the generated message sequence and write the following
-         - to messages
-            - sequence id (select on insert w orm)
-            - step (from model response)
-            - msg_content (from model response)
-            - confidence (from model response)
-            - rationale
+        if (openAiResponse.status !== 200) {
+            console.log("----OPENAI ERROR-----")
+            console.log(openAiResponse.status)
+            return {
+                status: openAiResponse.status
+            }
+        }
 
-        taking the in-memory responses write to ai_generations
-            - sequence_id
-            - provider (name of the AI)
-            - model (name of the model)
-            - prompt (prompt variable)
-            - response (full model response)
-            - generation_type
-            - token_usage (should be given in response)
-            - cost_usd (should be given)
+        const sequenceGenerationResult : ParsedApiResponse = await parseOpenAiResponse(openAiResponse)
 
-        DO NOT BLOCK HERE i.e., do not await the result
-        
-        */
+        const insertedSequence = await insertMessageSequence({
+            prospect_id: upsertedProspect[0].id,
+            tov_config_id: upsertedTovConfig[0].id,
+            company_context: company_context,
+            sequence_length: sequence_length
+        })
 
+        let insertedMessagesArray = null;
+        if (sequenceGenerationResult.generatedContent && sequenceGenerationResult.generatedContent.messages) {
+            const withSequences = sequenceGenerationResult.generatedContent.messages.map(msg => ({ 
+                ...msg, 
+                message_sequence_id: insertedSequence[0].id 
+            }))
+            insertedMessagesArray = await insertMultipleMessages(withSequences)
+        }
+
+        console.log("------ TEXT RESPONSE AS JSON ------")
+        console.log(JSON.stringify(sequenceGenerationResult.generatedContent, null, 2))
+
+        console.log("------ USAGE RESPONSE ------")
+        console.log(JSON.stringify(sequenceGenerationResult.usage, null, 2))
+
+        // insert message sequence
         return { 
-            openai_api_response: openAiResponseBody
+            openai_api_response: sequenceGenerationResult
         }
     })
 }
