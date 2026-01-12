@@ -13,8 +13,6 @@ create table if not exists tov_configs (
     check (directness between 0 and 100)
 );
 
-create type if not exists sequence_status as enum ('complete', 'failed');
-
 create table if not exists message_sequences (
     /* RELATIONS */
 
@@ -32,7 +30,6 @@ create table if not exists message_sequences (
 
     /* LIFECYCLE */
 
-    status sequence_status not null default 'complete',
     -- which stage of the interaction are we in? 
     -- this is the next message to send and is incremented on message send
     current_step int not null default 1,

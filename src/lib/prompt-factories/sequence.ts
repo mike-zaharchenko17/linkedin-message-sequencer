@@ -1,7 +1,7 @@
 import { TovConfig, encodeTov } from "../encode-tov.js"
 import { ProspectStub } from "../linkedin-profile-stub.js"
 
-export function generateSequencePromptFactory(
+export function generateSequencePrompt(
     companyCtx: string,
     profileSnapshot: ProspectStub,
     tovConfig: TovConfig,
