@@ -10,3 +10,5 @@ export const DATABASE_URL = process.env.DATABASE_URL
 // VERIFICATION_KEY in your environment for production. Falls back to the
 // interview/test key provided for convenience.
 export const VERIFICATION_KEY = process.env.VERIFICATION_KEY
+
+export const OPENAI_API_KEY = process.env.OPENAI_API_KEY
