@@ -1,10 +1,11 @@
 import Fastify from "fastify"
-import type { FastifyPluginAsync } from "fastify"
 import { JsonSchemaToTsProvider } from "@fastify/type-provider-json-schema-to-ts"
 import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
 import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub, { ProspectStub } from "../lib/linkedin-profile-stub.js"
+import { upsertTovConfig, upsertProspect } from "../db/callbacks.js"
+import { profile } from "node:console"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -27,9 +28,12 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
         const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
 
-        // write to database:
-        //  - id, linkedin_url, fname, middle_initial, lname, headline, profile_data
-        // upsert here
+        // endpoint validates bounds on TOV config so we shouldn't be
+        // inserting invalid data into db- should 400 before then but cover this jic
+        const [upsertedProfile, upsertedTovConfig] = await Promise.all([
+            upsertProspect(profileStub),
+            upsertTovConfig(tov_config)
+        ])
 
         const prompt = generateSequencePrompt(
             company_context, 
