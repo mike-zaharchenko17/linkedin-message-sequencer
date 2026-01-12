@@ -1,6 +1,7 @@
+import { TovConfig } from "../lib/encode-tov.js";
 import { ProspectStub } from "../lib/linkedin-profile-stub.js";
 import { db } from "./client.js";
-import { prospects } from "./schema.js";
+import { prospects, tov_configs } from "./schema.js";
 
 export const upsertProspect = async (p: ProspectStub) => {
     const upsertedData = await db
@@ -18,4 +19,20 @@ export const upsertProspect = async (p: ProspectStub) => {
     
     return upsertedData
 }
+
+export const upsertTovConfig = async (t: TovConfig) => {
+    const upsertedData = await db
+        .insert(tov_configs)
+        .values({
+            formality: t.formality,
+            warmth: t.warmth,
+            directness: t.directness
+            // instructions will go here as well
+        })
+        .onConflictDoNothing()
+        .returning()
+
+    return upsertedData
+}
+
 
