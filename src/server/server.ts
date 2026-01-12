@@ -1,14 +1,40 @@
 import Fastify from "fastify"
+import type { FastifyRequest, FastifyReply } from 'fastify'
 import { JsonSchemaToTsProvider } from "@fastify/type-provider-json-schema-to-ts"
 import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
 import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub, { ProspectStub } from "../lib/linkedin-profile-stub.js"
 import { upsertTovConfig, upsertProspect } from "../db/callbacks.js"
-import { profile } from "node:console"
+import { VERIFICATION_KEY } from "../config/env.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
+
+// Simple header-based verification for sensitive endpoints. Accepts either:
+// - x-verification-key: <key>
+// - x-api-key: <key>
+// - Authorization: Bearer <key>
+const verifyKey = async (request: FastifyRequest, reply: FastifyReply) => {
+    // Schema requires `x-verification-key`, so prefer only that header here to keep
+    // validation and runtime checks consistent.
+    const raw = request.headers['x-verification-key'] as string | undefined
+
+    if (!raw) {
+        void reply.code(401).send({ error: 'Missing x-verification-key header' })
+        return
+    }
+
+    if (VERIFICATION_KEY === undefined) {
+        void reply.code(500).send({ error: 'Server verification key not configured' })
+        return
+    }
+
+    if (raw !== VERIFICATION_KEY) {
+        void reply.code(403).send({ error: 'Invalid verification key' })
+        return
+    }
+}
 
 const routes = async (fastify : FastifyInstanceWithProvider) => {
     fastify.get('/health', async (request, reply) => {
@@ -16,13 +42,13 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         return { ok: r.rows[0]?.ok === 1 }
     })
 
-    fastify.post('/generate-sequence-dummy', gsOpts, async (request, reply) => {
+    fastify.post('/generate-sequence-dummy', async (request, reply) => {
         const { 
             tov_config, 
             company_context, 
             sequence_length, 
             prospect_url 
-        } = request.body
+        } = request.body as any
 
         const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
 
@@ -38,7 +64,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         }
     })
 
-    fastify.post('/generate-sequence', gsOpts, async (request, reply) => {
+    fastify.post('/generate-sequence', { ...gsOpts, preHandler: verifyKey }, async (request, reply) => {
         const { 
             tov_config, 
             company_context, 
@@ -50,7 +76,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
-        
+
         const [upsertedProfile, upsertedTovConfig] = await Promise.all([
             upsertProspect(profileStub),
             upsertTovConfig(tov_config)
@@ -99,8 +125,6 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         DO NOT BLOCK HERE i.e., do not await the result
         
         */
-
-        
 
         return {
             message: prompt
