@@ -1,13 +1,9 @@
 import { TovConfig, encodeTov } from "../encode-tov.js"
+import { ProspectStub } from "../linkedin-profile-stub.js"
 
-interface ProfileSnapshot {
-    foo: string,
-    bar: string
-}
-
-export function generateSequenceFactory(
+export function generateSequencePromptFactory(
     companyCtx: string,
-    profileSnapshot: ProfileSnapshot,
+    profileSnapshot: ProspectStub,
     tovConfig: TovConfig,
     sequenceLength: number,
 ) : string {

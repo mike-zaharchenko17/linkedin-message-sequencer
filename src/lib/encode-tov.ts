@@ -5,9 +5,12 @@ export interface TovConfig {
 }
 
 function band(tovVal: number): "low" | "mid" | "high" {
-    if (tovVal > 0) throw new Error("TOV value must be gte zero to assign a band")
-    if (tovVal < 0.33) return "low"
-    if (tovVal < 0.66) return "mid"
+    if (!Number.isFinite(tovVal)) throw new Error(`TOV value not finite: ${tovVal}`)
+    // accept either 0..1 normalized values or 0..100 percentage values
+    const v = tovVal > 1 ? tovVal / 100 : tovVal
+    if (v < 0 || v > 1) throw new Error(`TOV value out of range 0..1 (got ${tovVal})`)
+    if (v < 0.33) return "low"
+    if (v < 0.66) return "mid"
     return "high"
 }
 
