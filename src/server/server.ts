@@ -7,7 +7,8 @@ import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub, { ProspectStub } from "../lib/linkedin-profile-stub.js"
 import { upsertTovConfig, upsertProspect } from "../db/callbacks.js"
 import { OPENAI_API_KEY, VERIFICATION_KEY } from "../config/env.js"
-import OpenAIResponse from "./schemas/openai-response.schema.js"
+import OpenAIResponse, { OutputItem } from "./schemas/openai-response.schema.js"
+import { text } from "node:stream/consumers"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -78,10 +79,10 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
 
-        // const [upsertedProfile, upsertedTovConfig] = await Promise.all([
-        //     upsertProspect(profileStub),
-        //     upsertTovConfig(tov_config)
-        // ])
+        const [upsertedProfile, upsertedTovConfig] = await Promise.all([
+            upsertProspect(profileStub),
+            upsertTovConfig(tov_config)
+        ])
 
         const prompt = generateSequencePrompt(
             company_context, 
@@ -104,7 +105,14 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
         const openAiResponseBody: OpenAIResponse = await openAiResponse.json()
 
-        console.log(JSON.stringify(openAiResponseBody, null, 2))
+        const responseMessages : OutputItem[] = openAiResponseBody.output.filter((o: OutputItem) => o.type === "message")
+
+        const textResponse = responseMessages[0].content?.[0].text
+        const textResponseAsJson = textResponse ? JSON.parse(textResponse) : null
+
+        console.log(JSON.stringify(textResponseAsJson, null, 2))
+
+        console.log(JSON.stringify(openAiResponseBody.usage, null, 2))
 
         // note: make a decision on whether it's best to do tov_configs as enum or smallint (both?)
 
@@ -143,7 +151,9 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         
         */
 
-        return openAiResponseBody
+        return { 
+            openai_api_response: openAiResponseBody
+        }
     })
 }
 
