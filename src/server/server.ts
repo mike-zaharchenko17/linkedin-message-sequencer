@@ -143,9 +143,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         
         */
 
-        return {
-            message: prompt
-        }
+        return openAiResponseBody
     })
 }
 
