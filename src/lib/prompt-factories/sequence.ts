@@ -4,6 +4,7 @@ import { TovConfig, ProspectStub } from "../../db/types.js"
 export function generateSequencePrompt(
     companyCtx: string,
     profileSnapshot: ProspectStub,
+    profileAnalysisContent: string,
     tovConfig: TovConfig,
     sequenceLength: number,
 ) : string {
@@ -14,6 +15,9 @@ export function generateSequencePrompt(
 
     PROSPECT PROFILE (JSON):
     ${JSON.stringify(profileSnapshot)}
+
+    PROSPECT PROFILE ANALYSIS (LLM-GENERATED):
+    ${JSON.stringify(profileAnalysisContent)}
 
     TONE OF VOICE:
     ${formality}

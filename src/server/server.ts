@@ -12,6 +12,7 @@ import { ProspectStub } from "../db/types.js"
 import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
 import { db } from "../db/client.js"
+import { generateAnalysisPrompt } from "../lib/prompt-factories/analysis.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -55,25 +56,50 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             prospect_url 
         } = request.body
 
+        // stub; real version would replace this with scraper
         const profileStub : ProspectStub = generateLinkedInProfileStub(prospect_url)
-
-        // endpoint validates bounds on TOV config so we shouldn't be
-        // inserting invalid data into db- should 400 before then but cover this jic
 
         const [insertedOrSelectedProspect, insertedOrSelectedTovConfig] = await Promise.all([
             insertProspectSelectOnConflict(profileStub),
             insertTovConfigSelectOnConflict(tov_config)
         ])
 
+        const analysisPrompt = generateAnalysisPrompt(profileStub)
+
+        const profileAnalysisResponse = await openAiClient.responses.create({
+            model: "gpt-5-mini",
+            input: [
+                {
+                    role: "system",
+                    content: "You are expert at analyzing sales prospects with limited information"
+                },
+                {
+                    role: "user",
+                    content: analysisPrompt
+                },
+            ],
+            reasoning: { effort: "medium" }
+        })
+
+        const profileAnalysisContent = profileAnalysisResponse.output
+        const profileAnalysisContentAsText = profileAnalysisResponse.output_text
+
+        console.log("---- PROFILE ANALYSIS CONTENT ----")
+        console.log(profileAnalysisContent)
+
+        // endpoint validates bounds on TOV config so we shouldn't be
+        // inserting invalid data into db- should 400 before then but cover this jic
+
         // generate prompt
-        const prompt = generateSequencePrompt(
+        const sequencePrompt = generateSequencePrompt(
             company_context, 
             profileStub,
+            profileAnalysisContentAsText,
             tov_config,
             sequence_length
         )
 
-        const openAiResponse = await openAiClient.responses.parse({
+        const generateSequenceResponse = await openAiClient.responses.parse({
             model: "gpt-5-mini",
             input: [
                 {
@@ -82,7 +108,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
                 },
                 {
                     role: "user",
-                    content: prompt
+                    content: sequencePrompt
                 }
             ],
             reasoning: { effort: "low" },
@@ -91,9 +117,8 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             }
         })
 
-        const fullModelName = openAiResponse.model
-        const tokens = openAiResponse.usage
-        const sequenceGenerationResult = openAiResponse.output_parsed
+        const fullModelName = generateSequenceResponse.model
+        const sequenceGenerationResult = generateSequenceResponse.output_parsed
 
         console.log(JSON.stringify(sequenceGenerationResult, null, 2))
 
@@ -102,6 +127,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             const insertedSequence = await insertMessageSequence(tx, {
                 prospect_id: insertedOrSelectedProspect[0].id,
                 tov_config_id: insertedOrSelectedTovConfig[0].id,
+                prospect_analysis: profileAnalysisContent,
                 company_context: company_context,
                 sequence_length: sequence_length
             })
@@ -116,15 +142,26 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
                 insertedMessagesArray = await insertMultipleMessages(tx, withSequences)
             }
 
-            await insertAiGeneration(tx, {
-                sequence_id: insertedSequence[0].id,
-                provider: "OpenAI",
-                model: fullModelName,
-                prompt: prompt,
-                response: openAiResponse,
-                generation_type: "message_generation",
-                token_usage: openAiResponse.usage || null
-            })
+            await Promise.all([
+                insertAiGeneration(tx, {
+                    sequence_id: insertedSequence[0].id,
+                    provider: "OpenAI",
+                    model: fullModelName,
+                    prompt: sequencePrompt,
+                    response: generateSequenceResponse,
+                    generation_type: "message_generation",
+                    token_usage: generateSequenceResponse.usage || null
+                }),
+                insertAiGeneration(tx, {
+                    provider: "OpenAI",
+                    // it's the same model on both
+                    model: fullModelName,
+                    prompt: analysisPrompt,
+                    response: profileAnalysisResponse,
+                    generation_type: "profile_analysis",
+                    token_usage: profileAnalysisResponse.usage || null
+                })
+            ])
         })
 
         return {

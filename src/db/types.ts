@@ -16,6 +16,7 @@ export interface TovConfig {
 export interface MessageSequence {
     prospect_id: string,
     tov_config_id: string,
+    prospect_analysis: unknown,
     company_context: string,
     sequence_length: number
 }
@@ -29,7 +30,7 @@ export interface Message {
 }
 
 export interface AiGeneration {
-    sequence_id: string,
+    sequence_id?: string,
     provider: string,
     model: string,
     prompt: unknown,
