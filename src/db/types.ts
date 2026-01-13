@@ -32,8 +32,8 @@ export interface AiGeneration {
     sequence_id: string,
     provider: string,
     model: string,
-    prompt: string,
-    response: string,
+    prompt: unknown,
+    response: unknown,
     generation_type: string,
-    token_usage: number | null,
+    token_usage: unknown,
 }

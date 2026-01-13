@@ -92,7 +92,7 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         })
 
         const fullModelName = openAiResponse.model
-        const tokens = openAiResponse.usage?.total_tokens
+        const tokens = openAiResponse.usage
         const sequenceGenerationResult = openAiResponse.output_parsed
 
         console.log(JSON.stringify(sequenceGenerationResult, null, 2))
@@ -120,10 +120,10 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
                 sequence_id: insertedSequence[0].id,
                 provider: "OpenAI",
                 model: fullModelName,
-                prompt: JSON.stringify(prompt),
-                response: JSON.stringify(openAiResponse),
+                prompt: prompt,
+                response: openAiResponse,
                 generation_type: "message_generation",
-                token_usage: tokens ?? null
+                token_usage: openAiResponse.usage || null
             })
         })
 
