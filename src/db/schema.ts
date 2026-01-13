@@ -44,7 +44,7 @@ export const message_sequences = pgTable("message_sequences", {
 	prospect_id: uuid("prospect_id").notNull().references(() => prospects.id),
 	tov_config_id: uuid("tov_config_id").notNull().references(() => tov_configs.id),
 	company_context: text("company_context").notNull(),
-	prospect_analysis: jsonb("prospect_analysis").notNull().$type<string>().default(sql`'{}'::jsonb`),
+	prospect_analysis: jsonb("prospect_analysis").notNull().$type<unknown>().default(sql`'{}'::jsonb`),
 	sequence_length: integer("sequence_length").notNull(),
 	current_step: integer("current_step").notNull().default(1),
 	response_received: boolean("response_received").notNull().default(false),
