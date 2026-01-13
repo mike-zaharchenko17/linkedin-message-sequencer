@@ -7,9 +7,10 @@ import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub from "../lib/helpers/linkedin-profile-stub.js"
 import { upsertTovConfig, upsertProspect, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
 import { OPENAI_API_KEY, VERIFICATION_KEY } from "../config/env.js"
-import { ProspectStub } from "../types/types.js"
-import { parseOpenAiResponse } from "../lib/helpers/parse-openai-response.js"
-import { ParsedApiResponse } from "../types/openai-response.types.js"
+import { openAiClient } from "../openai/client.js"
+import { ProspectStub } from "../db/types.js"
+import { zodTextFormat } from "openai/helpers/zod.js"
+import { MessageSequenceJsonString } from "../openai/types.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -58,10 +59,10 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
 
-        const [upsertedProspect, upsertedTovConfig] = await Promise.all([
-            upsertProspect(profileStub),
-            upsertTovConfig(tov_config)
-        ])
+        // const [upsertedProspect, upsertedTovConfig] = await Promise.all([
+        //     upsertProspect(profileStub),
+        //     upsertTovConfig(tov_config)
+        // ])
 
         // generate prompt
         const prompt = generateSequencePrompt(
@@ -71,80 +72,43 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             sequence_length
         )
 
-        const openAiResponse = await fetch('https://api.openai.com/v1/responses', {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: "gpt-5-mini",
-                reasoning: { effort: "low" },
-                input: prompt,
-                // ask the Responses API to return a structured JSON object
-                response_format: {
-                    type: "json_schema",
-                    json_schema: {
-                        name: "MessageSequence",
-                        schema: {
-                            type: "object",
-                            properties: {
-                                sequence_length: { type: "integer", minimum: 1 },
-                                messages: {
-                                    type: "array",
-                                    items: {
-                                        type: "object",
-                                        properties: {
-                                            step: { type: "integer", minimum: 1 },
-                                            msg_content: { type: "string" },
-                                            confidence: { type: "number", minimum: 0, maximum: 100 },
-                                            rationale: { type: "string" },
-                                            delay_days: { type: "integer", minimum: 0 }
-                                        },
-                                        required: ["step","msg_content","confidence","rationale","delay_days"],
-                                        additionalProperties: false
-                                    }
-                                }
-                            },
-                            required: ["sequence_length","messages"],
-                            additionalProperties: false
-                        }
-                    }
+        const openAiResponse = await openAiClient.responses.parse({
+            model: "gpt-5-mini",
+            input: [
+                {
+                    role: "system",
+                    content: "You are an expert outbound sales copywriter"
+                },
+                {
+                    role: "user",
+                    content: prompt
                 }
-            })
-        })
-        
-        if (openAiResponse.status !== 200) {
-            console.log("----OPENAI ERROR-----")
-            console.log(openAiResponse.status)
-            return {
-                status: openAiResponse.status
+            ],
+            reasoning: { effort: "low" },
+            text: {
+                format: zodTextFormat(MessageSequenceJsonString, "MessageSequence")
             }
-        }
-
-        const sequenceGenerationResult : ParsedApiResponse = await parseOpenAiResponse(openAiResponse)
-
-        const insertedSequence = await insertMessageSequence({
-            prospect_id: upsertedProspect[0].id,
-            tov_config_id: upsertedTovConfig[0].id,
-            company_context: company_context,
-            sequence_length: sequence_length
         })
 
-        let insertedMessagesArray = null;
-        if (sequenceGenerationResult.generatedContent && sequenceGenerationResult.generatedContent.messages) {
-            const withSequences = sequenceGenerationResult.generatedContent.messages.map(msg => ({ 
-                ...msg, 
-                message_sequence_id: insertedSequence[0].id 
-            }))
-            insertedMessagesArray = await insertMultipleMessages(withSequences)
-        }
+        const sequenceGenerationResult = openAiResponse.output_parsed
 
-        console.log("------ TEXT RESPONSE AS JSON ------")
-        console.log(JSON.stringify(sequenceGenerationResult.generatedContent, null, 2))
+        console.log(JSON.stringify(sequenceGenerationResult, null, 2))
 
-        console.log("------ USAGE RESPONSE ------")
-        console.log(JSON.stringify(sequenceGenerationResult.usage, null, 2))
+        // const insertedSequence = await insertMessageSequence({
+        //     prospect_id: upsertedProspect[0].id,
+        //     tov_config_id: upsertedTovConfig[0].id,
+        //     company_context: company_context,
+        //     sequence_length: sequence_length
+        // })
+
+        // let insertedMessagesArray = null;
+        // if (sequenceGenerationResult.generatedContent && sequenceGenerationResult.generatedContent.messages) {
+        //     const withSequences = sequenceGenerationResult.generatedContent.messages.map(msg => ({ 
+        //         ...msg, 
+        //         message_sequence_id: insertedSequence[0].id 
+        //     }))
+        //     insertedMessagesArray = await insertMultipleMessages(withSequences)
+        // }
 
         // insert message sequence
         return { 

@@ -1,4 +1,4 @@
-import { AiGeneration, Message, MessageSequence, ProspectStub, TovConfig } from "../types/types.js";
+import { AiGeneration, Message, MessageSequence, ProspectStub, TovConfig } from "./types.js";
 import { db } from "./client.js";
 import { message_sequences, prospects, tov_configs, messages, ai_generations } from "./schema.js";
 

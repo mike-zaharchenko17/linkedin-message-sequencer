@@ -4,7 +4,7 @@
  * inserted into the DB or used as a mock in unit tests.
  */
 
-import { ProspectStub } from "../../types/types.js";
+import { ProspectStub } from "../../db/types.js";
 
 export function generateLinkedInProfileStub(
 	linkedin_url: string,

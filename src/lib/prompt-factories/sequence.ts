@@ -1,5 +1,5 @@
 import { encodeTov } from "../helpers/encode-tov.js"
-import { TovConfig, ProspectStub } from "../../types/types.js"
+import { TovConfig, ProspectStub } from "../../db/types.js"
 
 export function generateSequencePrompt(
     companyCtx: string,
@@ -10,10 +10,6 @@ export function generateSequencePrompt(
     const [formality, warmth, directness] = encodeTov(tovConfig)
 
     const prompt = `
-    ### SYSTEM ###
-    You are an expert outbound sales copywriter.
-
-    ### USER ###
     Company context: ${companyCtx}
 
     PROSPECT PROFILE (JSON):
