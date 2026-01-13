@@ -207,11 +207,19 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
 fastify.register(routes)
 
+fastify.register(routes);
+
 export const runServer = async () => {
     try {
-        await fastify.listen({ port: 3000 })
+        const port = Number(process.env.PORT) || 3000;
+
+        await fastify.listen({
+            port,
+            host: "0.0.0.0",
+        });
+
     } catch (err) {
-        fastify.log.error(err)
-        process.exit(1)
+        fastify.log.error(err);
+        process.exit(1);
     }
-}
+};
