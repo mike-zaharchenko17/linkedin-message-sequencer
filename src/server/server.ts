@@ -207,8 +207,6 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
 fastify.register(routes)
 
-fastify.register(routes);
-
 export const runServer = async () => {
     try {
         const port = Number(process.env.PORT) || 3000;
