@@ -25,7 +25,15 @@ Render
 
 ## Database Structure
 
-Managed Postgres instance on Neon
+### General Decision Decisions
+
+Insertions into message_sequences, messages, and ai_generations are performed atomically. If there is an error, the database will roll back. 
+
+To accomplish this, I used drizzle's transaction wrappers. 
+
+As these tables are very closely related to one another and hierarchical, I implemented it this way to ensure that every generation is accounted for and there are no orphaned entries. 
+
+tov_configs and prospects are 'independent' of the aforementioned three, and are reliant on 'insert if not exists', so we don't treat them atomically. There is no rollback if these encounter an error. However, the API will still handle it and return a 500 status code.
 
 ### Schema 
 
@@ -122,5 +130,65 @@ Design decisions:
 
 Purpose: audit/log of AI calls (prompts, full responses, token usage & cost) so sequences and analysis can be audited or re-run.
 
+### Prompt Engineering
 
+I used a basic structure for prompt engineering: system-level meta instructions and user-level task instructions. In this system, a prompt is a template and has request-specific information dynamically inserted into it. 
+
+Right now, the system is not response-aware and follows only the unhappy path (though I did add some extra trigger options should there be a need for easy improvements) where the prospect does not respond
+
+Full prompt snapshots and configs are stored in the database for easier analytics and auditing.
+
+### AI Integration and Error Handling
+
+This project took me a while because, just as I was about to complete it, I stress tested it a few times, and got a malformed JSON error (fun reminder that LLMs are not deterministic). 
+
+This led to me looking for a way to enforce structured output and an eventual refactor of the whole prompting and generation system (naked API call -> OpenAI SDK call with structured output enforcement and JSON schema validation)
+
+By incorporating structured output with Fastify (and @fastify/sensible)'s error handling, the endpoint throws a bad gateway if the LLM's response:
+- deviates from the expected schema
+- deviates from sequence length parameters
+- is improperly structured (missing escape characters, etc.)
+- is empty
+- has an explicit error
+
+### API design choices and data validation
+
+The endpoint is at `<base_url>/api/generate-sequence`
+
+It takes the following request payload:
+
+```[javascript]
+POST /api/generate-sequence
+{
+  "prospect_url": "https://linkedin.com/in/john-doe",
+  "tov_config": {
+    "formality": 0.8,
+    "warmth": 0.6, 
+    "directness": 0.7
+  },
+  "company_context": "We help SaaS companies automate sales",
+  "sequence_length": 3
+}
+```
+
+There is also a db health endpoint that takes no payload and performs an empty query at `<base_url>/api/health`
+
+The `generate-sequence` endpoint functions as an orchestrator. It coordinates the program's logical flow.
+
+Payload validation is handled through Fastify's options. The expected payload schema is supplied in an options object. The endpoint it will reject with a 400 status code if the incoming body is malformed.
+
+For general error handling, I registered an error handler with Fastify that returns structured, predictable, and explicit output. It covers gateway, internal, and permission errors.
+
+**IMPORTANT:** to protect my OpenAI API usage, the endpoint will reject requests that do not have the correct x-verification-key set in the request's headers.
+
+### Future Improvements ###
+
+- Hook a actual system up to it (proper UI, scraper, and message scheduler/deployer). It would also be possible to make the system response-aware with streaming
+- Improve the latency
+  - Right now, it takes about 20s from request to response. I think it can be sped up by:
+    - Experimenting with models and reasoning presets to see where latency can be minimized without compromising quality
+    - Since the prompt is basically a skeleton, we can cache it to reduce both token usage and input processing time
+    - Offloading database updates to a separate worker thread so that response time is bounded only by model response (though I suspect this to be the case anyway- db reads/writes are comparatively fast)
+- Add more path coverage
+  - Include the happy path as well
 
