@@ -1,9 +1,3 @@
-- Database schema decisions and why
-- How you approached prompt engineering
-- AI integration patterns and error handling
-- API design choices and data validation
-- What you'd improve with more time
-
 ## Stack
 
 Fastify
