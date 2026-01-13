@@ -1,5 +1,5 @@
 import Fastify from "fastify"
-import type { FastifyRequest, FastifyReply } from 'fastify'
+import type { FastifyRequest, FastifyReply, FastifyError } from 'fastify'
 import { JsonSchemaToTsProvider } from "@fastify/type-provider-json-schema-to-ts"
 import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
@@ -13,9 +13,12 @@ import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
 import { db } from "../db/client.js"
 import { generateAnalysisPrompt } from "../openai/prompt-factories/analysis.js"
+import sensible from "@fastify/sensible"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
+
+fastify.register(sensible)
 
 // Simple header-based verification for sensitive endpoints. Accepts either:
 // - x-verification-key: <key>
@@ -27,20 +30,35 @@ const verifyKey = async (request: FastifyRequest, reply: FastifyReply) => {
     const raw = request.headers['x-verification-key'] as string | undefined
 
     if (!raw) {
-        void reply.code(401).send({ error: 'Missing x-verification-key header' })
-        return
+        throw fastify.httpErrors.unauthorized("Missing x-verification-key header")
     }
 
     if (VERIFICATION_KEY === undefined) {
-        void reply.code(500).send({ error: 'Server verification key not configured' })
-        return
+        throw fastify.httpErrors.internalServerError("Server verification key not configured")
     }
 
     if (raw !== VERIFICATION_KEY) {
-        void reply.code(403).send({ error: 'Invalid verification key' })
-        return
+        throw fastify.httpErrors.forbidden("Invalid verification key")
     }
 }
+
+fastify.setErrorHandler((err: FastifyError, request, reply) => {
+    const statusCode = err.statusCode ?? 500
+
+    if (statusCode >= 500) {
+        request.log.error({ err }, "request failed")
+    } else {
+        request.log.warn({ err }, "request rejected")
+    }
+
+    reply.code(statusCode).send({
+        ok: false,
+        error: {
+            code: err.code ?? "ERR",
+            message: err.message,
+        },
+    });
+})
 
 const routes = async (fastify : FastifyInstanceWithProvider) => {
     fastify.get('/health', async (request, reply) => {
@@ -84,8 +102,9 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         const profileAnalysisContent = profileAnalysisResponse.output
         const profileAnalysisContentAsText = profileAnalysisResponse.output_text
 
-        console.log("---- PROFILE ANALYSIS CONTENT ----")
-        console.log(profileAnalysisContent)
+        if (!profileAnalysisContentAsText || profileAnalysisContentAsText.trim() === "") {
+            throw fastify.httpErrors.badGateway("OpenAI returned no analysis text")
+        }
 
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
@@ -120,7 +139,21 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         const fullModelName = generateSequenceResponse.model
         const sequenceGenerationResult = generateSequenceResponse.output_parsed
 
-        console.log(JSON.stringify(sequenceGenerationResult, null, 2))
+        if (!sequenceGenerationResult) {
+            throw fastify.httpErrors.badGateway("OpenAI returned no parsed sequence")
+        }
+
+        if (!Array.isArray(sequenceGenerationResult.messages) || sequenceGenerationResult.messages.length === 0) {
+            throw fastify.httpErrors.badGateway("OpenAI returned no parsed sequence")
+        }
+
+        if (sequenceGenerationResult.sequence_length !== sequence_length) {
+            throw fastify.httpErrors.badGateway("Model sequence_length mismatch")
+        }
+
+        if (sequenceGenerationResult.messages.length !== sequence_length) {
+            throw fastify.httpErrors.badGateway("Model returned wrong number of messages");
+        }
 
         // if we fail any of these, we need to roll the database back- these are logically atomic
         await db.transaction(async (tx) => {
@@ -164,9 +197,11 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             ])
         })
 
-        return {
-            openai_api_response: sequenceGenerationResult
-        }
+        return reply.code(201).send({
+            ok: true,
+            profile_analysis_result: profileAnalysisContentAsText,
+            sequence_generation_result: sequenceGenerationResult
+        })
     })
 }
 
