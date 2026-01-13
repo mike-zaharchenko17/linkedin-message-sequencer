@@ -10,11 +10,41 @@ export function generateLinkedInProfileStub(
 	linkedin_url: string,
 	overrides: Partial<ProspectStub> = {}
 ): ProspectStub {
+	function extractNamesFromLinkedInUrl(url: string): { 
+		fname?: string; 
+		lname?: string 
+	} {
+		if (!url) return {};
+
+		// Expect: https://www.linkedin.com/in/first-last
+		const match = url.match(/\/in\/([^/?#]+)/i);
+		if (!match) return {};
+
+		const slug = decodeURIComponent(match[1]).trim();
+		if (!slug) return {};
+
+		const parts = slug.split("-").filter(Boolean);
+		if (parts.length === 0) return {};
+
+		const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+		if (parts.length === 1) {
+			return { fname: cap(parts[0]) };
+		}
+
+		return {
+			fname: cap(parts[0]),
+			lname: cap(parts[parts.length - 1]),
+		};
+	}
+
+	const parsed = extractNamesFromLinkedInUrl(linkedin_url || '');
+
 	const defaultProfile: ProspectStub = {
 		linkedin_url,
-		fname: 'Alex',
+		fname: parsed.fname ?? 'Alex',
 		middle_initial: null,
-		lname: 'Morgan',
+		lname: parsed.lname ?? 'Morgan',
 		headline: 'Product Manager | B2B SaaS',
 		profile_data: {
 			location: 'San Francisco, CA',
