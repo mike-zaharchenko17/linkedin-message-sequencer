@@ -1,4 +1,4 @@
-import { encodeTov } from "../helpers/encode-tov.js"
+import { encodeTov } from "../../lib/encode-tov.js"
 import { TovConfig, ProspectStub } from "../../db/types.js"
 
 export function generateSequencePrompt(

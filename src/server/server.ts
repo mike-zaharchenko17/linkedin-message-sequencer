@@ -3,8 +3,8 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { JsonSchemaToTsProvider } from "@fastify/type-provider-json-schema-to-ts"
 import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
-import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
-import generateLinkedInProfileStub from "../lib/helpers/linkedin-profile-stub.js"
+import { generateSequencePrompt } from "../openai/prompt-factories/sequence.js"
+import generateLinkedInProfileStub from "../lib/linkedin-profile-stub.js"
 import { insertProspectSelectOnConflict, insertTovConfigSelectOnConflict, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
 import { VERIFICATION_KEY } from "../config/env.js"
 import { openAiClient } from "../openai/client.js"
@@ -12,7 +12,7 @@ import { ProspectStub } from "../db/types.js"
 import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
 import { db } from "../db/client.js"
-import { generateAnalysisPrompt } from "../lib/prompt-factories/analysis.js"
+import { generateAnalysisPrompt } from "../openai/prompt-factories/analysis.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify

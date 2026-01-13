@@ -1,4 +1,4 @@
-import { TovConfig } from "../../db/types.js"
+import { TovConfig } from "../db/types.js"
 
 function band(tovVal: number): "low" | "mid" | "high" {
     if (!Number.isFinite(tovVal)) throw new Error(`TOV value not finite: ${tovVal}`)
