@@ -29,6 +29,8 @@ As these tables are very closely related to one another and hierarchical, I impl
 
 tov_configs and prospects are 'independent' of the aforementioned three, and are reliant on 'insert if not exists', so we don't treat them atomically. There is no rollback if these encounter an error. However, the API will still handle it and return a 500 status code.
 
+Migrations were performed manually via connection string and PSQL. In a production system, I would set up an action to do this and use a migration script. 
+
 ### Schema 
 
 **prospects**

@@ -14,7 +14,7 @@
     "strict": true,
     "noStrictGenericChecks": false,
     "skipLibCheck": true,
-
+    "esModuleInterop": true,
     "noEmitOnError": true,
     "forceConsistentCasingInFileNames": true
   },
