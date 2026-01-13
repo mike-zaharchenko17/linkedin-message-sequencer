@@ -1,21 +1,21 @@
 ## Stack
 
-Fastify
-Neon
-Drizzle ORM
-Render
+- Fastify
+- Neon
+- Drizzle ORM
+- Render
 
 ## Project Structure
 
--> migrations: contains sql files with database migrations
--> src: project root; contains application entry point (index.ts)
----> config: contains environment variables
----> db: contains the database layer (connection pool, schemas, callbacks, etc.)
----> lib: contains helper functions and utils
----> openai: responsible for model connections, prompt engineering, and schema validation
------> prompt-factories: contains prompt builder functions
----> server: fastify core
------> schemas: really just "schema" but contains the endpoint's payload validation module; additional schemas can be added here if this is expanded upon
+- migrations: contains sql files with database migrations
+- src: project root; contains application entry point (index.ts)
+  - config: contains environment variables
+  - db: contains the database layer (connection pool, schemas, callbacks, etc.)
+  - lib: contains helper functions and utils
+  - openai: responsible for model connections, prompt engineering, and schema validation
+    - prompt-factories: contains prompt builder functions
+  - server: fastify core
+- schemas: really just "schema" but contains the endpoint's payload validation module; additional schemas can be added here if this is expanded upon
 
 ## Database Structure
 
