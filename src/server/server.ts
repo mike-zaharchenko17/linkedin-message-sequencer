@@ -61,12 +61,12 @@ fastify.setErrorHandler((err: FastifyError, request, reply) => {
 })
 
 const routes = async (fastify : FastifyInstanceWithProvider) => {
-    fastify.get('/health', async (request, reply) => {
+    fastify.get('/api/health', async (request, reply) => {
         const r = await pool.query("select 1 as ok")
         return { ok: r.rows[0]?.ok === 1 }
     })
 
-    fastify.post('/generate-sequence', { ...gsOpts, preHandler: verifyKey }, async (request, reply) => {
+    fastify.post('/api/generate-sequence', { ...gsOpts, preHandler: verifyKey }, async (request, reply) => {
         const { 
             tov_config, 
             company_context, 

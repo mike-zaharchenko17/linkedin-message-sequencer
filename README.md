@@ -25,7 +25,9 @@ Render
 
 ## Database Structure
 
-Below is a concise reference of the production DB tables (mirrors the SQL in `migrations/`). Use this for quick orientation when working with the data model.
+Managed Postgres instance on Neon
+
+### Schema 
 
 **prospects**
 
@@ -43,6 +45,10 @@ Below is a concise reference of the production DB tables (mirrors the SQL in `mi
 
 Purpose: normalized prospect records and a JSON snapshot of profile details used by prompts and analysis.
 
+Design decisions:
+- The prospects table contains normalized fields for data that can be found on every LinkedIn profile and uses jsonb to store "messy" data that can vary from profile to profile. In a more sophisticated system with scraping instead of stubbing, it would be prudent to build out a system that separates some of these fields into separate tables for more performant queries and analytics capability. 
+- LinkedIn URL as a discriminator; since a profile url is inherently unique, uniqueness can be enforced and  
+
 **tov_configs**
 
 | Column | Type | Constraints | Notes |
@@ -55,6 +61,11 @@ Purpose: normalized prospect records and a JSON snapshot of profile details used
 | created_at | timestamptz | NOT NULL, DEFAULT now() | |
 
 Purpose: tone-of-voice presets (formality/warmth/directness) used when generating sequences. Unique constraint on (formality, warmth, directness).
+
+Design decisions: 
+- To encourage deduplication and reuse, there is a unique constraint on the (formality, warmth, directness) triple in tov_configs
+- By storing tov_configs in a separate table, we encourage data deduplication and make our configs more easily auditable than they would be if we were to inline them into message_sequences
+- On write, the system attempts an insert and, if the unique constraint is violated, selects the relevant toi
 
 **message_sequences**
 
@@ -73,6 +84,9 @@ Purpose: tone-of-voice presets (formality/warmth/directness) used when generatin
 
 Purpose: top-level sequence object tying a prospect + TOV config + generated analysis together. Tracks lifecycle (current step, response received). The application does not currently have lifecycle update features, but the columns are there to make adding cron etc. seamless.
 
+Design decisions:
+- message_sequences was made to control the lifecycle of the messaging sequence. That is, messages are only aware of which step they are. They are not aware of which step the overall sequence is on. If we were to incorporate a cron module / scheduler, it would consult the message_sequences table to decide when to deploy follow up messages and make updates depending on status
+
 **messages**
 
 | Column | Type | Constraints | Notes |
@@ -87,6 +101,9 @@ Purpose: top-level sequence object tying a prospect + TOV config + generated ana
 | rationale | text | NULL | optional explanation
 
 Purpose: individual messages in a sequence. Each message has a trigger and scheduling metadata.
+
+Design decisions: 
+- Messages are aware of their trigger and how many days since the previous message need to have passed for them to be deployed. This allows us to have a natural, staggered cadence that the LLM can decide on. When a scheduler goes to deploy a new message, it can check that message's specific trigger to see whether it should be deployed or not.
 
 **ai_generations**
 
@@ -104,7 +121,6 @@ Purpose: individual messages in a sequence. Each message has a trigger and sched
 | created_at | timestamptz | NOT NULL, DEFAULT now() | |
 
 Purpose: audit/log of AI calls (prompts, full responses, token usage & cost) so sequences and analysis can be audited or re-run.
-
 
 
 
