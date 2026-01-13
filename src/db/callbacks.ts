@@ -1,9 +1,10 @@
 import { AiGeneration, Message, MessageSequence, ProspectStub, TovConfig } from "./types.js";
 import { db } from "./client.js";
+import { eq, sql } from "drizzle-orm"
 import { message_sequences, prospects, tov_configs, messages, ai_generations } from "./schema.js";
 
-export const upsertProspect = async (p: ProspectStub) => {
-    const upsertedData = await db
+export const insertProspectSelectOnConflict = async (p: ProspectStub) => {
+    const insertedData = await db
         .insert(prospects)
         .values({ 
             linkedin_url: p.linkedin_url,
@@ -16,11 +17,18 @@ export const upsertProspect = async (p: ProspectStub) => {
         .onConflictDoNothing()
         .returning()
     
-    return upsertedData
+    if (!insertedData) {
+        return await db
+            .select()
+            .from(prospects)
+            .where(eq(prospects.linkedin_url, p.linkedin_url))
+    }
+    
+    return insertedData
 }
 
-export const upsertTovConfig = async (t: TovConfig) => {
-    const upsertedData = await db
+export const insertTovConfigSelectOnConflict = async (t: TovConfig) => {
+    const insertedData = await db
         .insert(tov_configs)
         .values({
             formality: t.formality * 100,
@@ -30,7 +38,18 @@ export const upsertTovConfig = async (t: TovConfig) => {
         .onConflictDoNothing()
         .returning()
 
-    return upsertedData
+    if (!insertedData) {
+        return await db
+            .select()
+            .from(tov_configs)
+            .where(sql`
+                ${tov_configs.formality} = ${t.formality}
+                and ${tov_configs.warmth} = ${t.warmth}
+                and ${tov_configs.directness} = ${t.directness}
+            `)
+    }
+
+    return insertedData
 }
 
 export const insertMessageSequence = async (ms: MessageSequence) => {

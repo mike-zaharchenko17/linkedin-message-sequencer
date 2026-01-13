@@ -5,12 +5,13 @@ import { gsOpts } from "./schemas/generate-sequence.schema.js"
 import { pool } from "../db/pool.js"
 import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub from "../lib/helpers/linkedin-profile-stub.js"
-import { upsertTovConfig, upsertProspect, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
+import { insertProspectSelectOnConflict, insertTovConfigSelectOnConflict, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
 import { OPENAI_API_KEY, VERIFICATION_KEY } from "../config/env.js"
 import { openAiClient } from "../openai/client.js"
 import { ProspectStub } from "../db/types.js"
 import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
+import { matchesGlob } from "node:path"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -59,10 +60,10 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
         // endpoint validates bounds on TOV config so we shouldn't be
         // inserting invalid data into db- should 400 before then but cover this jic
 
-        // const [upsertedProspect, upsertedTovConfig] = await Promise.all([
-        //     upsertProspect(profileStub),
-        //     upsertTovConfig(tov_config)
-        // ])
+        const [insertedOrSelectedProspect, insertedOrSelectedTovConfig] = await Promise.all([
+            insertProspectSelectOnConflict(profileStub),
+            insertTovConfigSelectOnConflict(tov_config)
+        ])
 
         // generate prompt
         const prompt = generateSequencePrompt(
@@ -94,23 +95,23 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
         console.log(JSON.stringify(sequenceGenerationResult, null, 2))
 
-        // const insertedSequence = await insertMessageSequence({
-        //     prospect_id: upsertedProspect[0].id,
-        //     tov_config_id: upsertedTovConfig[0].id,
-        //     company_context: company_context,
-        //     sequence_length: sequence_length
-        // })
+        const insertedSequence = await insertMessageSequence({
+            prospect_id: insertedOrSelectedProspect[0].id,
+            tov_config_id: insertedOrSelectedTovConfig[0].id,
+            company_context: company_context,
+            sequence_length: sequence_length
+        })
 
-        // let insertedMessagesArray = null;
-        // if (sequenceGenerationResult.generatedContent && sequenceGenerationResult.generatedContent.messages) {
-        //     const withSequences = sequenceGenerationResult.generatedContent.messages.map(msg => ({ 
-        //         ...msg, 
-        //         message_sequence_id: insertedSequence[0].id 
-        //     }))
-        //     insertedMessagesArray = await insertMultipleMessages(withSequences)
-        // }
+        const withSequences = sequenceGenerationResult?.messages.map(msg => ({
+            ...msg,
+            message_sequence_id: insertedSequence[0].id
+        }))
 
-        // insert message sequence
+        let insertedMessagesArray = null;
+        if (withSequences) {
+            insertedMessagesArray = await insertMultipleMessages(withSequences)
+        }
+
         return { 
             openai_api_response: sequenceGenerationResult
         }
