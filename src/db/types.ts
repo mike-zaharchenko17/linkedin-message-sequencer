@@ -29,12 +29,11 @@ export interface Message {
 }
 
 export interface AiGeneration {
-    message_sequence_id: string,
+    sequence_id: string,
     provider: string,
     model: string,
     prompt: string,
     response: string,
     generation_type: string,
-    token_usage: number,
-    cost_usd: number
+    token_usage: number | null,
 }

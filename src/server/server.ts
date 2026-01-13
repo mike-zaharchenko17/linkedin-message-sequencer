@@ -6,12 +6,11 @@ import { pool } from "../db/pool.js"
 import { generateSequencePrompt } from "../lib/prompt-factories/sequence.js"
 import generateLinkedInProfileStub from "../lib/helpers/linkedin-profile-stub.js"
 import { insertProspectSelectOnConflict, insertTovConfigSelectOnConflict, insertMessageSequence, insertMultipleMessages, insertAiGeneration } from "../db/callbacks.js"
-import { OPENAI_API_KEY, VERIFICATION_KEY } from "../config/env.js"
+import { VERIFICATION_KEY } from "../config/env.js"
 import { openAiClient } from "../openai/client.js"
 import { ProspectStub } from "../db/types.js"
 import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
-import { matchesGlob } from "node:path"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -91,6 +90,8 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             }
         })
 
+        const fullModelName = openAiResponse.model
+        const tokens = openAiResponse.usage?.total_tokens
         const sequenceGenerationResult = openAiResponse.output_parsed
 
         console.log(JSON.stringify(sequenceGenerationResult, null, 2))
@@ -112,7 +113,17 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
             insertedMessagesArray = await insertMultipleMessages(withSequences)
         }
 
-        return { 
+        insertAiGeneration({
+            sequence_id: insertedSequence[0].id,
+            provider: "OpenAI",
+            model: fullModelName,
+            prompt: JSON.stringify(prompt),
+            response: JSON.stringify(openAiResponse),
+            generation_type: "message_generation",
+            token_usage: tokens ?? null
+        })
+
+        return {
             openai_api_response: sequenceGenerationResult
         }
     })
