@@ -1,5 +1,5 @@
 import { AiGeneration, Message, MessageSequence, ProspectStub, TovConfig } from "./types.js";
-import { db } from "./client.js";
+import { db, DbConn } from "./client.js";
 import { eq, and } from "drizzle-orm"
 import { message_sequences, prospects, tov_configs, messages, ai_generations } from "./schema.js";
 
@@ -53,8 +53,8 @@ export const insertTovConfigSelectOnConflict = async (t: TovConfig) => {
     return insertedData
 }
 
-export const insertMessageSequence = async (ms: MessageSequence) => {
-    const insertedData = await db
+export const insertMessageSequence = async (conn: DbConn, ms: MessageSequence) => {
+    const insertedData = await conn
         .insert(message_sequences)
         .values(ms)
         .returning()
@@ -62,8 +62,8 @@ export const insertMessageSequence = async (ms: MessageSequence) => {
     return insertedData
 }
 
-export const insertMessage = async (m: Message) => {
-    const insertedData = await db
+export const insertMessage = async (conn: DbConn, m: Message) => {
+    const insertedData = await conn
         .insert(messages)
         .values(m)
         .returning()
@@ -71,8 +71,8 @@ export const insertMessage = async (m: Message) => {
     return insertedData
 }
 
-export const insertMultipleMessages = async (m: Message[]) => {
-    const insertedData = await db
+export const insertMultipleMessages = async (conn: DbConn, m: Message[]) => {
+    const insertedData = await conn
         .insert(messages)
         .values(m)
         .returning()
@@ -80,8 +80,8 @@ export const insertMultipleMessages = async (m: Message[]) => {
     return insertedData
 }
 
-export const insertAiGeneration = async (a: AiGeneration) => {
-    const insertedData = await db
+export const insertAiGeneration = async (conn: DbConn, a: AiGeneration) => {
+    const insertedData = await conn
         .insert(ai_generations)
         .values(a)
         .returning()

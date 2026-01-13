@@ -11,6 +11,7 @@ import { openAiClient } from "../openai/client.js"
 import { ProspectStub } from "../db/types.js"
 import { zodTextFormat } from "openai/helpers/zod.js"
 import { MessageSequenceJsonString } from "../openai/types.js"
+import { db } from "../db/client.js"
 
 const fastify = Fastify({ logger: true }).withTypeProvider<JsonSchemaToTsProvider>()
 type FastifyInstanceWithProvider = typeof fastify
@@ -96,31 +97,34 @@ const routes = async (fastify : FastifyInstanceWithProvider) => {
 
         console.log(JSON.stringify(sequenceGenerationResult, null, 2))
 
-        const insertedSequence = await insertMessageSequence({
-            prospect_id: insertedOrSelectedProspect[0].id,
-            tov_config_id: insertedOrSelectedTovConfig[0].id,
-            company_context: company_context,
-            sequence_length: sequence_length
-        })
+        // if we fail any of these, we need to roll the database back- these are logically atomic
+        await db.transaction(async (tx) => {
+            const insertedSequence = await insertMessageSequence(tx, {
+                prospect_id: insertedOrSelectedProspect[0].id,
+                tov_config_id: insertedOrSelectedTovConfig[0].id,
+                company_context: company_context,
+                sequence_length: sequence_length
+            })
 
-        const withSequences = sequenceGenerationResult?.messages.map(msg => ({
-            ...msg,
-            message_sequence_id: insertedSequence[0].id
-        }))
+            const withSequences = sequenceGenerationResult?.messages.map(msg => ({
+                ...msg,
+                message_sequence_id: insertedSequence[0].id
+            }))
 
-        let insertedMessagesArray = null;
-        if (withSequences) {
-            insertedMessagesArray = await insertMultipleMessages(withSequences)
-        }
+            let insertedMessagesArray = null;
+            if (withSequences) {
+                insertedMessagesArray = await insertMultipleMessages(tx, withSequences)
+            }
 
-        insertAiGeneration({
-            sequence_id: insertedSequence[0].id,
-            provider: "OpenAI",
-            model: fullModelName,
-            prompt: JSON.stringify(prompt),
-            response: JSON.stringify(openAiResponse),
-            generation_type: "message_generation",
-            token_usage: tokens ?? null
+            await insertAiGeneration(tx, {
+                sequence_id: insertedSequence[0].id,
+                provider: "OpenAI",
+                model: fullModelName,
+                prompt: JSON.stringify(prompt),
+                response: JSON.stringify(openAiResponse),
+                generation_type: "message_generation",
+                token_usage: tokens ?? null
+            })
         })
 
         return {
